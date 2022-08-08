@@ -1,0 +1,22 @@
+server {
+        listen 4444 default_server;
+        listen [::]:4444 default_server;
+
+        root /home/ssjblue197/Desktop/GOLANG/test-webrtc/dist;
+        index index.html index.htm index.nginx-debian.html;
+
+        server_name webrtc.com www.webrtc.com;
+
+        location / {
+                try_files $uri $uri/ =404;
+        }
+
+ #       location /api/data/ {
+#               max_ranges 0;
+   #             alias /home/ssjblue197/AISYSTEM/DATA/;
+  #      }
+
+        location /api/ {
+                proxy_pass http://localhost:8008/;
+        }
+}
