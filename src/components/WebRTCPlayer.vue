@@ -1,5 +1,5 @@
 <template>
-    <div style="overflow: hidden; box-shadow: 0 3px 10px rgb(0 0 0 / 0.2); border-radius: 5px;" class="mb-4 ml-2 mr-2" :style="isRebooting ? 'background-color: white; opacity: 0.3;' : ''">
+    <div class="mb-4 ml-2 mr-2 playerWrap" :style="isRebooting ? 'background-color: white; opacity: 0.3;' : ''">
         <div style="position: fixed; left: 50%; top: 40%;" v-if="isRebooting">
             <b-spinner variant="primary" label="Spinning"></b-spinner>
         </div>
@@ -23,14 +23,14 @@
             >
             </b-icon>
           </b-col>
-          <b-col cols="1">
+          <!-- <b-col cols="1">
             <b-icon icon="arrow-clockwise" variant="secondary"
               :animation="hoverReload ? 'spin' : ''"
               v-b-hover="hoverReloadAct"
               @click="reloadChannel()"
             >
             </b-icon>
-          </b-col>
+          </b-col> -->
   
         </b-row>
         <div v-if="showMenu" class="middelItem">
@@ -40,9 +40,23 @@
             @change="changeChannel"
           ></b-form-radio-group>
         </div>
-        <video 
-        poster="../assets/video_poster.jpg"
-        :id="`webrtc-video${this.streamID + 'video' + this.channelSelected.name}`" autoplay muted playsinline width="100%" @dblclick="viewStream()"></video>
+        <b-row style="display: block; margin-bottom: -10px; background-color: #B3B8BC;"> 
+          <video 
+            v-show="!showIconReload"
+            poster="../assets/playing.svg"
+            :id="`webrtc-video${this.streamID + 'video' + this.channelSelected.name}`" autoplay muted playsinline width="100%" @dblclick="viewStream()"></video>
+          <div
+            v-show="showIconReload"
+            style="display: flex; flex-direction: row; text-align: center; justify-items: center; justify-content: center; height: 210px; padding-top: 80px;">
+            <b-icon icon="arrow-clockwise" variant="secondary"
+              :animation="hoverReload ? 'spin' : ''"
+              v-b-hover="hoverReloadAct"
+              style="width: 40px; height: 40px;"
+              @click="reloadChannel()"
+            >
+            </b-icon>
+        </div>
+        </b-row>
     </div>
 </template>
 
@@ -68,7 +82,10 @@ export default {
         currentUrl: '',
         isClosed: false,
         hoverReload: false,
-        hoverSetting: false
+        hoverSetting: false,
+        countRetry: 3,
+        showIconReload: false,
+        replayTimeout: null
     }
   },
   watch: {
@@ -76,7 +93,7 @@ export default {
       if (this.channels.length > 0) {
         this.channelSelected = {
           name: this.channels[0].name,
-          url: this.channels[0].url
+          url: this.channels[0].webrtcUrl
         }
       }
     }
@@ -85,7 +102,7 @@ export default {
     if (this.channels.length > 0) {
       this.channelSelected = {
         name: this.channels[0].name,
-        url: this.channels[0].url
+        url: this.channels[0].webrtcUrl
       }
     }
   },
@@ -97,13 +114,17 @@ export default {
   beforeDestroy() {
     console.log('DESTROYED');
     clearInterval(this.webrtcSendChannelInterval);
+    if (this.replayTimeout) {
+      clearTimeout(this.replayTimeout);
+      this.replayTimeout = null;
+    }
     this.webrtcSendChannelInterval = null;
     this.closeStream();
   },
   methods: {
-    stopStream() {
+    async stopStream() {
       this.$toast.error(`Stop Channel: ${this.channelSelected.name}`);
-      this.closeStream();
+      await this.closeStream();
     },
     hoverReloadAct(hovered) {
       this.hoverReload = hovered;
@@ -111,16 +132,23 @@ export default {
     hoverSettingAct(hovered) {
       this.hoverSetting = hovered;
     },
-    reloadChannel() {
-      console.log('Reload Channel:', this.streamID + '/' +this. channels[0].name);
-      this.$toast.info(`Reload Channel: ${this.streamID + '/' +this. channels[0].name}`);
+    async reloadChannel() {
+      console.log('Reload Channel:', this.streamID + '/' + this.channelSelected.name);
+      this.$toast.info(`Reload Channel: ${this.streamID + '/' + this.channelSelected.name}`);
+      this.showIconReload = false;
+      this.countRetry = 1;
+      await this.closeStream();
+      await this.startPlay();
     },
     viewStream() {
       this.$emit('showPlayer', { selectChannel: this.channelSelected });
     },
-    async changeChannel() {
+    async changeChannel(e) {
+      console.log(e);
       this.showMenu = false;
-      this.closeStream();
+      this.showIconReload = false;
+      this.countRetry = 1;
+      await this.closeStream();
       await this.startPlay();
       this.$toast.info(`Change Channel: ${this.channelSelected.name}`);
     },
@@ -132,14 +160,14 @@ export default {
             text: item.name,
             value: {
               name: item.name,
-              url: item.url
+              url: item.webrtcUrl
             },
           })
         }
       }
       return opts
     },
-    closeStream() {
+    async closeStream() {
       if (this.webrtcSendChannel !== null) {
         this.webrtcSendChannel.close();
         this.webrtcSendChannel = null;
@@ -153,9 +181,9 @@ export default {
     async startPlay() {
       this.isClosed = false;
       this.isRebooting = false;
-      this.$toast.success(`Start Stream: ${this.streamID} / ${this.channelSelected.name}`);
+      // this.$toast.success(`Start Stream: ${this.streamID} / ${this.channelSelected.name}`);
       let videoID = '#webrtc-video' + this.streamID + 'video' + this.channelSelected.name;
-      console.log(videoID);
+      // console.log(videoID);
       let videoEl = document.querySelector(videoID);
       this.webrtc = new RTCPeerConnection({
       iceServers: [{
@@ -165,22 +193,51 @@ export default {
       });
       this.webrtc.onnegotiationneeded = await this.handleNegotiationNeeded;
       this.webrtc.ontrack = function(event) {
-      console.log(event.streams.length + ' track is delivered');
-      videoEl.srcObject = event.streams[0];
-      videoEl.play();
+        console.log(event.streams.length + ' track is delivered');
+        videoEl.srcObject = event.streams[0];
+        videoEl.play();
       }
+      this.webrtc.onconnectionstatechange = async function(event) {
+        switch(event.currentTarget.connectionState) {
+          case "connected":
+            console.log('[CONNECTION IS CONNETED]');
+            // The connection has become fully connected
+            break;
+          case "disconnected":
+            console.log('[CONNECTION IS DISCONNETED]');
+            await this.closeStream();
+            await this.startPlay();
+            break;
+          case "failed":
+            console.log('[OTHERS ERROR CAUSE]');
+            break;
+          case "closed":
+            console.log('[CONNECTION IS CLOSED]');
+            // The connection has been closed
+            break;
+        }
+      };
+      this.webrtc.oniceconnectionstatechange = function(event) {
+          // console.log('[ICE EVENT ONCHANGE]', event);
+          if (event.currentTarget.iceConnectionState === "failed" ||
+              event.currentTarget.iceConnectionState === "disconnected" ||
+              event.currentTarget.iceConnectionState === "closed") {
+                  // console.log('[ICE UPDATE STATE]', event.currentTarget.iceConnectionState);
+                  this.webrtc.restartIce();
+          }
+      };
       this.webrtc.addTransceiver('video', {
       'direction': 'sendrecv'
       });
-      this.webrtcSendChannel = this.webrtc.createDataChannel('sendchannel');
-      this.webrtcSendChannel.onopen = () => {
-      console.log('sendChannel has opened');
-      this.webrtcSendChannel.send('ping');
-      this.webrtcSendChannelInterval = setInterval(() => {
-          this.webrtcSendChannel.send('ping');
-      }, 1000)
-      }
-      this.webrtcSendChannel.onmessage = e => console.log(e.data);
+      // this.webrtcSendChannel = this.webrtc.createDataChannel('sendchannel');
+      // this.webrtcSendChannel.onopen = () => {
+      // console.log('sendChannel has opened');
+      // // this.webrtcSendChannel.send('ping');
+      // // this.webrtcSendChannelInterval = setInterval(() => {
+      // //     this.webrtcSendChannel.send('ping');
+      // // }, 1000)
+      // }
+      // this.webrtcSendChannel.onmessage = e => console.log(e.data);
     },
     async handleNegotiationNeeded() {
       this.currentUrl = APP_CONFIG.BASE_URL + this.channelSelected.url;
@@ -198,11 +255,29 @@ export default {
         // console.log(data);
         try {
             this.webrtc.setRemoteDescription(new RTCSessionDescription({
-            type: 'answer',
-            sdp: atob(data)
+              type: 'answer',
+              sdp: atob(data)
             }))
         } catch (e) {
-            console.warn(e);
+            // console.warn(e);
+            if (this.countRetry === 0) {
+              this.$toast.error(`Không có tín hiệu luồng stream: ${this.streamID}/${this.channelSelected.name}`);
+            }
+            if (this.countRetry > 0) {
+                this.replayTimeout = setTimeout(async () => {
+                  await this.closeStream();
+                  await this.startPlay();
+                }, 3000);
+                // console.log('[CON LAI SO LAN THU]:',this.countRetry);
+                this.countRetry--;
+            } else {
+                // console.log('SHOW ICON RELOAD');
+                this.showIconReload = true;
+                if (this.replayTimeout) {
+                  clearTimeout(this.replayTimeout);
+                  this.replayTimeout = null;
+                }
+            }
         }
     })
     },
@@ -219,7 +294,7 @@ export default {
   align-self: start;
   align-content: flex-start;
   position: absolute;
-  z-index: 1001;
+  z-index: 900;
   margin-left: 0px;
   background-color: rgba(153, 146, 146, 0.9);
   border-radius: 5px 0px 5px 0px;
@@ -229,6 +304,12 @@ export default {
 video {
   object-fit: cover;
   height: 200px;
+  border-radius: 5px;
+}
+.playerWrap {
+  display: block;
+  overflow: hidden;
+  box-shadow: 0 3px 10px rgb(0 0 0 / 0.2);
   border-radius: 5px;
 }
 </style>
