@@ -5,8 +5,8 @@
           Loading data
     </div>
     <transition name="show">
-      <b-row class="justify-content-md-start pt-0 pb-0" style="margin-top:80px; margin-bottom:60px;" v-if="!isRebooting">
-        <b-col col xl="3"  lg="4" md="4" sm="6" xs="6" v-for="(stream, index) in this.streamListDisplay" :key="index">
+      <b-row class="justify-content-md-start pt-0 pb-0" style="margin-top:80px; margin-bottom:60px; width: 100%;" v-if="!isRebooting">
+        <b-col col xl="3"  lg="4" md="4" sm="6" v-for="(stream, index) in this.streamListDisplay" :key="index">
           <span style="font-weight: bold; margin-left: 20px;">
             Stream: {{ stream.name }} / {{ stream.channels.length }} channels
           </span>
@@ -17,7 +17,7 @@
         </b-col>
       </b-row>
     </transition>
-    <div style="position: fixed; top: 40vh; left: 40px; z-index: 1010;" v-if="this.currentPage !== 1 && !isRebooting">
+    <div style="position: fixed; top: 50vh; left: 40px; z-index: 1010;" v-if="this.currentPage !== 1 && !isRebooting">
       <b-icon icon="arrow-left-circle-fill" variant="info"
       class="btn-paginate"
       @click="previousPage()"
@@ -25,7 +25,7 @@
       >
       </b-icon>
     </div>
-    <div style="position: fixed; top: 40vh; right: 40px; z-index: 1010;" v-if="!isRebooting">
+    <div style="position: fixed; top: 50vh; right: 40px; z-index: 1010;" v-if="!isRebooting">
       <b-icon icon="arrow-right-circle-fill" v-if="this.currentPage !== this.totalPage" variant="info"
       class="btn-paginate"
       @click="nextPage()"
@@ -38,10 +38,15 @@
       <div style="pointer-events: none; font-weight: bold; pointer-events:none;">
         Tìm kiếm
       </div>
-      <b-input v-model="searchText" @keyup.enter="searchStream(searchText)" placeholder="Nhập từ khóa"></b-input>
+      <b-input
+        debounce="500"
+        v-model="searchText" @keyup.enter="searchStream(searchText)" placeholder="Nhập từ khóa"></b-input>
+      <b-row v-if="isSearching" class="mt-2" style="padding-left: 10px;">
+        Tìm thấy {{ totalResultSearch }} kết quả.
+      </b-row>
     </div>
     <div
-      style="width: 10%; position: fixed; top: 180px; left: 20px; background-color: rgba(81, 209, 232, 0.4); border-radius: 5px; padding: 10px; ">
+      style="width: 10%; position: fixed; top: 200px; left: 20px; background-color: rgba(81, 209, 232, 0.4); border-radius: 5px; padding: 10px; ">
       <div style="pointer-events: none; font-weight: bold; pointer-events:none;">
         Thống kê nhanh
       </div>
@@ -55,7 +60,7 @@
         Trang hiện tại: {{ this.currentPage }} / {{ this.totalPage }}
       </div>
       <hr>
-      <b-button variant="outline-primary" size="sm" v-on:click="openManageModal">Quản lý</b-button>
+      <b-button variant="primary" size="sm" v-on:click="openManageModal">Quản lý</b-button>
     </div>
     <modal name="previewModal" 
       draggable=".contentPreview"
@@ -74,7 +79,7 @@
         </b-icon>
         <img src="../assets/spinner.gif" style="margin-top: 180px;" v-show="loadingPreview">
         <video 
-        poster="../assets/video_poster.jpg"
+        poster="../assets/playing.svg"
         id="webrtc-video-modal" autoplay muted playsinline width="100%" v-show="!loadingPreview"></video>
       </div>
     </modal>
@@ -90,8 +95,16 @@
         @click="addStream()"
       variant="success" style="position: absolute; right: 5px; top: 5px;" size="sm">Thêm</b-button>
       <div class="manageContent">
+        <div class="searchManage">
+          <b-input
+            debounce="500"
+            v-model="searchTextManage" @keyup.enter="searchStreamManage(searchTextManage)" placeholder="Nhập từ khóa"></b-input>
+          <b-row class="mt-2" style="padding-left: 10px;">
+            Tìm thấy {{ listStreamManageDisplay.length }} kết quả.
+          </b-row>
+        </div>
         <div class="manageModal pb-1" style="border-radius: 5px; padding: 10px; padding-left: 20px; padding-right: 20px;"
-          v-for="(stream, index) in streamList"
+          v-for="(stream, index) in listStreamManageDisplay"
           :key="index"
         >
           <b-row>
@@ -106,8 +119,8 @@
               <span>
                 <b-button
                   @click="editStream(stream)"
-                 variant="outline-primary" style="margin-right: 10px;" size="sm">Sửa</b-button>
-                <b-button variant="outline-danger" @click="deleteStream(stream)" size="sm">Xóa</b-button>
+                 variant="primary" style="margin-right: 10px;" size="sm">Sửa</b-button>
+                <b-button variant="danger" @click="deleteStream(stream)" size="sm">Xóa</b-button>
               </span>
             </b-col>
           </b-row><hr>
@@ -132,60 +145,95 @@
           <b-col cols="7">
             <b-input placeholder="Nhập tên luồng" v-model="form.name"
               :disabled="action === 'update'"
+              :formatter="formatter"
+              debounce="500"
+              required
             />
           </b-col>
         </b-row><hr>
         <b-row>
           <b-row>
+            <b-col cols="1"></b-col>
             <b-col cols="3">Tên channel</b-col>
-            <b-col cols="5">RTSP Link</b-col>
-            <b-col cols="4" style="padding-right: 35px;">Tính năng</b-col>
+            <b-col cols="3">RTSP Link</b-col>
+            <b-col cols="5" style="padding-right: 35px;">Tính năng</b-col>
           </b-row>
-          <b-row v-for="(item, index) in form.channels" :key="index" style="margin-left: 20px; margin-bottom: 5px;">
-            <b-col cols="3" style="margin-right: 5px;">
-              <b-row>
-                <b-input placeholder="Nhập tên channel" v-model="item.name"/>
+          <b-row v-for="(item, index) in form.channels" :key="index"
+            style="margin-left: 20px; margin-bottom: 5px;"
+          >
+            <b-col cols="1">
+              <b-row class="mt-2">
+                <b-icon icon="circle-fill" :variant="item.status ? 'success' : 'danger'"
+                  v-b-tooltip.hover title="Trạng thái của channel."
+                >
+                </b-icon>
               </b-row>
             </b-col>
-            <b-col cols="4">
+            <b-col cols="2" style="margin-right: 5px;">
+              <b-row>
+                <b-input required placeholder="Nhập tên channel" v-model="item.name" debounce="500" :formatter="formatter"/>
+              </b-row>
+            </b-col>
+            <b-col cols="3">
               <b-row>
                 <b-input placeholder="Nhập RTSP Link" v-model="item.url"/>
               </b-row>
             </b-col>
             <b-col cols="1">
-              <b-row class="mt-2">
-                <b-icon icon="bug-fill" :variant="item.debug ? 'success' : 'normal'"
-                  v-b-tooltip.hover title="Tính năng Debug. Bật tính năng này để theo dõi gỡ lỗi."
-                  @click="onChangeDebug(index)"
-                >
-                </b-icon>
+              <b-row>
+                <b-button variant="light" @click="onChangeDebug(index)">
+                  <b-icon icon="bug-fill" :variant="item.debug ? 'success' : 'normal'"
+                    v-b-tooltip.hover title="Tính năng Debug. Bật tính năng này để theo dõi gỡ lỗi."
+                  >
+                  </b-icon>
+                </b-button>
               </b-row>
             </b-col>
             <b-col cols="1">
-              <b-row class="mt-2">
-                <b-icon icon="eye-fill" :variant="item.on_demand ? 'primary' : 'normal'"
-                  v-b-tooltip.hover title="Tính năng Ondemand. Bật tính năng này để tiết kiệm tài nguyên hệ thống."
-                  @click="onChangeOnDemand(index)"
-                >
-                </b-icon>
+              <b-row>
+                <b-button variant="light" @click="onChangeOnDemand(index)">
+                  <b-icon icon="eye-fill" :variant="item.on_demand ? 'success' : 'normal'"
+                    v-b-tooltip.hover title="Tính năng Ondemand. Bật tính năng này để tiết kiệm tài nguyên hệ thống."
+                  >
+                  </b-icon>
+                </b-button>
               </b-row>
             </b-col>
             <b-col cols="1">
-              <b-row class="mt-2">
-                <b-icon icon="trash-fill" variant="danger"
-                  v-b-tooltip.hover title="Xóa channel"
-                  @click="onDeleteChannel(index)"
-                >
-                </b-icon>
+              <b-row>
+                <b-button variant="light" @click="onChangeAudio(index)">
+                  <b-icon icon="volume-up-fill" variant="primary"
+                    v-if="item.audio"
+                    v-b-tooltip.hover title="Tắt âm thanh."
+                  >
+                  </b-icon>
+                  <b-icon
+                    icon="volume-mute-fill" variant="normal"
+                    v-else
+                    v-b-tooltip.hover title="Bật âm thanh."
+                  >
+                  </b-icon>
+                </b-button>
               </b-row>
             </b-col>
             <b-col cols="1">
-              <b-row class="mt-2">
-                <b-icon icon="back" variant="success"
-                  v-b-tooltip.hover title="Sao chép WebrtcUrl"
-                  @click="onCopyWebrtcUrl(item)"
-                >
-                </b-icon>
+              <b-row>
+                <b-button variant="light" @click="onDeleteChannel(index)">
+                  <b-icon icon="trash-fill" variant="danger"
+                    v-b-tooltip.hover title="Xóa channel"
+                  >
+                  </b-icon>
+                </b-button>
+              </b-row>
+            </b-col>
+            <b-col cols="1">
+              <b-row>
+                <b-button variant="light" @click="onCopyWebrtcUrl(item)">
+                  <b-icon icon="back" variant="success"
+                    v-b-tooltip.hover title="Sao chép WebrtcUrl"
+                  >
+                  </b-icon>
+                </b-button>
               </b-row>
             </b-col>
           </b-row>
@@ -264,7 +312,11 @@ export default {
       action: 'add',
       form: {},
       streamDelete: {},
-      searchText: ''
+      searchText: '',
+      searchTextManage: '',
+      isSearching: false,
+      totalResultSearch: 0,
+      listStreamManageDisplay: [] 
     }
   },
   mounted: function() {
@@ -273,23 +325,74 @@ export default {
     });
   },
   watch: {
+    searchTextManage() {
+      if (this.searchTextManage.length === 0) {
+        this.listStreamManageDisplay = this.streamList;
+      }
+    },
+    searchText() {
+      if (this.searchText.length === 0) {
+        this.isSearching = false;
+        let resultDisplay = [];
+        if (this.streamList.length > 0) {
+          this.totalPage = Math.ceil(this.streamList.length / this.perPage);
+          // console.log('SO TRANG:',this.totalPage);
+          // console.log('TRANG HIEN TAI', this.currentPage);
+          if (this.currentPage < this.totalPage) {
+            let start = (this.currentPage - 1) * this.perPage;
+            let end = this.currentPage * this.perPage;
+            resultDisplay = this.streamList.slice(start, end);
+          } else {
+            let start = (this.currentPage - 1) * this.perPage;
+            let end = this.streamList.length;
+            resultDisplay = this.streamList.slice(start, end);
+          }
+        }
+        this.streamListDisplay = resultDisplay;
+      } else {
+        this.isSearching = true;
+      }
+    },
     currentPage() {
       let resultDisplay = [];
-      if (this.streamList.length > 0) {
-        this.totalPage = Math.ceil(this.streamList.length / this.perPage);
-        // console.log('SO TRANG:',this.totalPage);
-        // console.log('TRANG HIEN TAI', this.currentPage);
-        if (this.currentPage < this.totalPage) {
-          let start = (this.currentPage - 1) * this.perPage;
-          let end = this.currentPage * this.perPage;
-          resultDisplay = this.streamList.slice(start, end);
-        } else {
-          let start = (this.currentPage - 1) * this.perPage;
-          let end = this.streamList.length;
-          resultDisplay = this.streamList.slice(start, end);
+      if (this.isSearching) {
+        //Paginate
+        const listStreamFiltered = this.streamList.filter((item) => {
+          return item.name.toLowerCase().includes(String(this.searchText).toLowerCase());
+        })
+        console.log(listStreamFiltered);
+        let resultDisplay = [];
+        if (listStreamFiltered.length > 0) {
+          this.totalPage = Math.ceil(listStreamFiltered.length / this.perPage);
+          if (this.currentPage < this.totalPage) {
+            let start = (this.currentPage - 1) * this.perPage;
+            let end = this.currentPage * this.perPage;
+            resultDisplay = listStreamFiltered.slice(start, end);
+          } else {
+            let start = (this.currentPage - 1) * this.perPage;
+            let end = listStreamFiltered.length;
+            resultDisplay = listStreamFiltered.slice(start, end);
+          }
         }
+        this.streamListDisplay = resultDisplay;
+      } else {
+        if (this.streamList.length > 0) {
+          this.totalPage = Math.ceil(this.streamList.length / this.perPage);
+          // console.log('SO TRANG:',this.totalPage);
+          // console.log('TRANG HIEN TAI', this.currentPage);
+          if (this.currentPage < this.totalPage) {
+            let start = (this.currentPage - 1) * this.perPage;
+            let end = this.currentPage * this.perPage;
+            resultDisplay = this.streamList.slice(start, end);
+          } else {
+            let start = (this.currentPage - 1) * this.perPage;
+            let end = this.streamList.length;
+            resultDisplay = this.streamList.slice(start, end);
+          }
+        }
+        this.streamListDisplay = resultDisplay;
       }
-      this.streamListDisplay = resultDisplay;
+      
       setTimeout(() => {
         this.isRebooting = false;
       }, 300)
@@ -301,8 +404,37 @@ export default {
     this.closeStream();
   },
   methods: {
+    formatter(value) {
+      return value.toLowerCase().trim();
+    },
     searchStream(text) {
       console.log(text);
+      if (this.isSearching) {
+        //Paginate
+        const listStreamFiltered = this.streamList.filter((item) => {
+          return item.name.toLowerCase().includes(String(text).toLowerCase());
+        })
+        this.totalResultSearch = listStreamFiltered.length;
+        let resultDisplay = [];
+        if (listStreamFiltered.length > 0) {
+          this.totalPage = Math.ceil(listStreamFiltered.length / this.perPage);
+          if (this.currentPage < this.totalPage) {
+            let start = (this.currentPage - 1) * this.perPage;
+            let end = this.currentPage * this.perPage;
+            resultDisplay = listStreamFiltered.slice(start, end);
+          } else {
+            let start = (this.currentPage - 1) * this.perPage;
+            let end = listStreamFiltered.length;
+            resultDisplay = listStreamFiltered.slice(start, end);
+          }
+        }
+        this.streamListDisplay = resultDisplay;
+      }
+    },
+    searchStreamManage(text) {
+      this.listStreamManageDisplay = this.streamList.filter(item => {
+        return item.name.toLowerCase().includes(String(text).toLowerCase());
+      });
     },
     onChangeDebug(indexChannel) {
       this.form.channels[indexChannel].debug = !this.form.channels[indexChannel].debug;
@@ -311,6 +443,10 @@ export default {
     onChangeOnDemand(indexChannel) {
       this.form.channels[indexChannel].on_demand = !this.form.channels[indexChannel].on_demand;
       this.$toast.info(`Đã ${this.form.channels[indexChannel].on_demand ? 'bật' : 'tắt'} chức năng OnDemand cho channel`);
+    },
+    onChangeAudio(indexChannel) {
+      this.form.channels[indexChannel].audio = !this.form.channels[indexChannel].audio;
+      this.$toast.info(`Đã ${this.form.channels[indexChannel].audio ? 'bật' : 'tắt'} âm thanh cho channel`);
     },
     onDeleteChannel(indexChannel) {
       this.form.channels.splice(indexChannel, 1);
@@ -389,7 +525,9 @@ export default {
         name: '',
         url: '',
         on_demand: true,
-        debug: false
+        debug: false,
+        audio: false,
+        status: 0
       });
     },
     addStream() {
@@ -401,7 +539,9 @@ export default {
           name: '',
           url: '',
           on_demand: true,
-          debug: false
+          debug: false,
+          audio: false,
+          status: 0
         }]
       }
     },
@@ -449,6 +589,7 @@ export default {
     },
     openManageModal() {
       this.$modal.show('manageModal');
+      this.listStreamManageDisplay = this.streamList;
     },
     viewFullScreen() {
       let elem = document.getElementById("webrtc-video-modal");
@@ -561,13 +702,9 @@ export default {
         }
     })},
     async showPlayer({ selectChannel }) {
-      // console.log(selectChannel);
       this.loadingPreview = true;
       this.currentUrl = selectChannel.url;
-      // console.log('CURRENT URL:', this.currentUrl);
-      // console.log(this.loadingPreview);
       await this.startPlay();
-      // this.$bvModal.show('playerModal');
       this.$modal.show('previewModal');
     },
     async getListCamWebRTC() {
@@ -580,9 +717,6 @@ export default {
           }
         }).then(res => {
           this.isRebooting = false;
-          // this.streamList = res.data.payload;
-          // console.log(this.streamList);
-          // console.log(res.data.payload);
           const tmp = [];
           this.showStreamList = [];
           for (const stream in res.data.payload) {
@@ -596,7 +730,9 @@ export default {
                     webrtcUrl: '/stream/' + stream + '/channel/' + channel + '/webrtc?uuid=' + stream + '&channel=' + channel,
                     url: res.data.payload[stream].channels[channel].url,
                     on_demand: res.data.payload[stream].channels[channel]?.on_demand || false,
-                    debug: res.data.payload[stream].channels[channel]?.debug || false
+                    debug: res.data.payload[stream].channels[channel]?.debug || false,
+                    audio: res.data.payload[stream].channels[channel]?.audio ||false,
+                    status: res.data.payload[stream].channels[channel]?.status ||0
                   })
                 }
               }
@@ -606,13 +742,13 @@ export default {
               })
             }
           }
+          //Total stream
           this.streamList = tmp.reverse();
-          // console.log(this.streamList);
+          
+          //Paginate
           let resultDisplay = [];
           if (this.streamList.length > 0) {
             this.totalPage = Math.ceil(this.streamList.length / this.perPage);
-            // console.log('SO TRANG:',this.totalPage);
-            // console.log('TRANG HIEN TAI', this.currentPage);
             if (this.currentPage < this.totalPage) {
               let start = (this.currentPage - 1) * this.perPage;
               let end = this.currentPage * this.perPage;
@@ -726,5 +862,11 @@ b-modal > .modal-body {
 .streamModal {
   padding-top: 10px;
   font-weight: bold;
+}
+.searchManage {
+  border-radius: 5px;
+  padding: 10px;
+  padding-left: 20px;
+  padding-right: 20px;
 }
 </style>

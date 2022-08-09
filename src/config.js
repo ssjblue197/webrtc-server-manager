@@ -1,6 +1,6 @@
 var APP_CONFIG = {
     /* ****** WEBSOCKET ******** */
-    BASE_URL: 'http://10.2.26.70:8008',
+    BASE_URL: 'http://localhost:8008',
     // BASE_URL: '/api',
     BASIC_AUTH: {
         USERNAME: 'admin',
