@@ -7,10 +7,55 @@
     <transition name="show">
       <b-row class="justify-content-md-start pt-0 pb-0" style="margin-top:80px; margin-bottom:60px; width: 100%;" v-if="!isRebooting">
         <b-col col xl="3"  lg="4" md="4" sm="6" v-for="(stream, index) in this.streamListDisplay" :key="index">
-          <span style="font-weight: bold; margin-left: 20px;">
-            Stream: {{ stream.name }} / {{ stream.channels.length }} channels
-          </span>
-            <Player :channels="stream.channels"
+          <b-row style="width: 100%; display: flex; flex-direction: row;">
+            <b-col style="flex-grow: 1; white-space: nowrap;
+                overflow: hidden;
+                text-overflow: ellipsis;
+                padding-left: 60px;
+                ">
+              <span style="font-weight: bold;">
+                Stream: {{ stream.name }} / {{ stream.channels.length }} channels 
+              </span>
+            </b-col>
+            <b-col cols="1" :id="'videoButton'+index">
+              <div class="buttonMedia"
+                @click="showModeList('#videoButton'+index)"
+              >
+                <b-icon icon="camera-video-fill" variant="success"
+                  v-b-tooltip.hover :title="`Chuyển đổi chế độ phát media. Hiện tại đang chạy: ${stream.playType}`"
+                />
+              </div>
+              <div class="menuPlayMode">
+                Chế độ
+                <b-form-select
+                  v-model="stream.playType"
+                  :options="formatList" 
+                  @change="changeModePlay(index, '#videoButton'+index)"
+                  size="sm" class="mt-3"></b-form-select>
+              </div>
+            </b-col>
+          </b-row>
+            <Player
+              v-if="stream.playType === 'webrtc'"
+              :channels="stream.channels"
+              :streamID="stream.name"
+              @showPlayer="showPlayer"
+            />
+            <HLSLLPlayer
+              v-if="stream.playType === 'hlsll'"
+              :channels="stream.channels"
+              :streamID="stream.name"
+              @showPlayer="showPlayer"
+            />
+            <HLSPlayer
+              v-if="stream.playType === 'hls'"
+              :channels="stream.channels"
+              :streamID="stream.name"
+              @showPlayer="showPlayer"
+            />
+            <MSEPlayer
+              v-if="stream.playType === 'mse'"
+              :channels="stream.channels"
               :streamID="stream.name"
               @showPlayer="showPlayer"
             />
@@ -79,7 +124,7 @@
         </b-icon>
         <img src="../assets/spinner.gif" style="margin-top: 180px;" v-show="loadingPreview">
         <video 
-        poster="../assets/playing.svg"
+        poster="../assets/video_poster.jpg"
         id="webrtc-video-modal" autoplay muted playsinline width="100%" v-show="!loadingPreview"></video>
       </div>
     </modal>
@@ -284,18 +329,27 @@
 
 <script>
 import axios from 'axios';
-import Player from './WebRTCPlayer'
+import Player from './WebRTCPlayer';
+import HLSLLPlayer from './HLSLLPlayer';
+import HLSPlayer from './HLSPlayer';
+import MSEPlayer from './MSEPlayer';
 import APP_CONFIG from '../config.js'
+import { $ } from '../common.js';
+
 export default {
   name: 'HelloWorld',
   components: {
-    Player
+    Player,
+    HLSLLPlayer,
+    HLSPlayer,
+    MSEPlayer
   },
   props: {
     // msg: String
   },
   data() {
     return {
+      formatList: ['webrtc', 'hls', 'hlsll', 'mse'],
       streamList: [],
       selectPlayer: {},
       webrtc: null,
@@ -316,7 +370,7 @@ export default {
       searchTextManage: '',
       isSearching: false,
       totalResultSearch: 0,
-      listStreamManageDisplay: [] 
+      listStreamManageDisplay: []
     }
   },
   mounted: function() {
@@ -349,6 +403,7 @@ export default {
           }
         }
         this.streamListDisplay = resultDisplay;
+        this.currentPage = 1;
       } else {
         this.isSearching = true;
       }
@@ -404,8 +459,28 @@ export default {
     this.closeStream();
   },
   methods: {
+    changeModePlay(index, classEl) {
+      const videoHeaderEl = $(classEl);
+      // console.log(videoHeaderEl);
+      const menuItem = videoHeaderEl.getElementsByClassName('menuPlayMode');
+      if (menuItem[0].style.display === 'none') {
+        menuItem[0].style.display = 'block';
+      } else {
+        menuItem[0].style.display = 'none';
+      }
+    },
+    showModeList(value) {
+      const videoHeaderEl = $(value);
+      // console.log(videoHeaderEl);
+      const menuItem = videoHeaderEl.getElementsByClassName('menuPlayMode');
+      if (menuItem[0].style.display === 'none') {
+        menuItem[0].style.display = 'block';
+      } else {
+        menuItem[0].style.display = 'none';
+      }
+    },
     formatter(value) {
-      return value.toLowerCase().trim();
+      return value.toLowerCase().trim().replace(' ', '_');
     },
     searchStream(text) {
       console.log(text);
@@ -429,6 +504,7 @@ export default {
           }
         }
         this.streamListDisplay = resultDisplay;
+        this.currentPage = 1;
       }
     },
     searchStreamManage(text) {
@@ -728,6 +804,9 @@ export default {
                   channels.push({
                     name: channel,
                     webrtcUrl: '/stream/' + stream + '/channel/' + channel + '/webrtc?uuid=' + stream + '&channel=' + channel,
+                    hlsUrl: '/stream/' + stream + '/channel/' + channel + '/hls/live/index.m3u8',
+                    hlsllUrl: '/stream/' + stream + '/channel/' + channel + '/hlsll/live/index.m3u8',
+                    mseUrl: '/stream/' + stream + '/channel/' + channel + '/mse?uuid=' + stream + '&channel=' + channel,
                     url: res.data.payload[stream].channels[channel].url,
                     on_demand: res.data.payload[stream].channels[channel]?.on_demand || false,
                     debug: res.data.payload[stream].channels[channel]?.debug || false,
@@ -739,12 +818,13 @@ export default {
               tmp.push({
                 name: stream,
                 channels: channels,
+                playType: 'webrtc'
               })
             }
           }
           //Total stream
           this.streamList = tmp.reverse();
-          
+          console.log('[TOTAL STREAMS]:', this.streamList);
           //Paginate
           let resultDisplay = [];
           if (this.streamList.length > 0) {
@@ -868,5 +948,26 @@ b-modal > .modal-body {
   padding: 10px;
   padding-left: 20px;
   padding-right: 20px;
+}
+.menuPlayMode {
+  position: absolute;
+  background-color: white;
+  box-shadow: rgba(100, 100, 111, 0.2) 0px 7px 29px 0px;
+  padding: 5px 10px;
+  border: 1px solid gray;
+  border-radius: 8px;
+  display: none;
+}
+.buttonMedia {
+  width: 30px;
+  height: 30px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  text-align: center;
+  border-radius: 50%;
+  background-color: white;
+  border: 1px solid gray;
+  box-shadow: rgba(0, 0, 0, 0.35) 0px 5px 15px;
 }
 </style>

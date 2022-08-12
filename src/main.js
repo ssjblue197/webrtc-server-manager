@@ -7,6 +7,10 @@ import { BootstrapVue, IconsPlugin } from 'bootstrap-vue'
 import 'bootstrap/dist/css/bootstrap.css'
 import 'bootstrap-vue/dist/bootstrap-vue.css'
 import VueBootstrapToasts from "vue-bootstrap-toasts";
+import MarqueeText from 'vue-marquee-text-component'
+
+Vue.component('marquee-text', MarqueeText)
+
 import VModal from 'vue-js-modal'
 Vue.use(VueBootstrapToasts);
 // Make BootstrapVue available throughout your project
