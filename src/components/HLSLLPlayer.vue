@@ -36,7 +36,8 @@
           <video 
             v-show="!showIconReload"
             poster="../assets/playing.svg"
-            :id="`webrtc-video${this.streamID + 'video' + this.channelSelected.name}`" autoplay muted playsinline width="100%" @dblclick="viewStream()"></video>
+            :style="'height:' + this.height"
+            :id="`hlsll-video${this.streamID + 'video' + this.channelSelected.name}`" autoplay muted playsinline width="100%" @dblclick="viewStream()"></video>
           <div
             v-show="showIconReload"
             style="display: flex; flex-direction: row; text-align: center; justify-items: center; justify-content: center; height: 210px; padding-top: 80px;">
@@ -61,7 +62,11 @@ export default {
   name: 'Player',
   props: {
     channels: Array,
-    streamID: String
+    streamID: String,
+    height: {
+      type: String,
+      default: '200px'
+    }
   },
   data() {
     return {
@@ -126,7 +131,7 @@ export default {
       this.hoverSetting = hovered;
     },
     async reloadChannel() {
-      console.log('Reload Channel:', this.streamID + '/' + this.channelSelected.name);
+      // console.log('Reload Channel:', this.streamID + '/' + this.channelSelected.name);
       this.$toast.info(`Reload Channel: ${this.streamID + '/' + this.channelSelected.name}`);
       this.showIconReload = false;
       this.countRetry = 1;
@@ -134,7 +139,7 @@ export default {
       await this.startPlay();
     },
     viewStream() {
-      this.$emit('showPlayer', { selectChannel: this.channelSelected });
+      this.$emit('showPlayer', { selectChannel: this.channelSelected, type: 'hlsll' });
     },
     async changeChannel(e) {
       console.log(e);
@@ -146,7 +151,7 @@ export default {
       this.$toast.info(`Change Channel: ${this.channelSelected.name}`);
     },
     genOptions(arr) {
-      var opts = [];
+      let opts = [];
       if (arr.length > 0) {
         for (const item of arr) {
           opts.push({
@@ -161,14 +166,6 @@ export default {
       return opts
     },
     async closeStream() {
-      if (this.webrtcSendChannel !== null) {
-        this.webrtcSendChannel.close();
-        this.webrtcSendChannel = null;
-      }
-      if (this.webrtc !== null) {
-        this.webrtc.close();
-        this.webrtc = null;
-      }
       if(this.hls!=null){
         this.hls.destroy();
         this.hls=null;
@@ -182,7 +179,7 @@ export default {
       this.isClosed = false;
       this.isRebooting = false;
       // this.$toast.success(`Start Stream: ${this.streamID} / ${this.channelSelected.name}`);
-      let videoID = '#webrtc-video' + this.streamID + 'video' + this.channelSelected.name;
+      let videoID = '#hlsll-video' + this.streamID + 'video' + this.channelSelected.name;
       // console.log(videoID);
       let videoEl = document.querySelector(videoID);
       this.currentUrl = APP_CONFIG.BASE_URL + this.channelSelected.url;

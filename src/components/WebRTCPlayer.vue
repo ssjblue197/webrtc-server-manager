@@ -44,6 +44,7 @@
           <video 
             v-show="!showIconReload"
             poster="../assets/playing.svg"
+            :style="'height:' + this.height"
             :id="`webrtc-video${this.streamID + 'video' + this.channelSelected.name}`" autoplay muted playsinline width="100%" @dblclick="viewStream()"></video>
           <div
             v-show="showIconReload"
@@ -69,7 +70,11 @@ export default {
   name: 'Player',
   props: {
     channels: Array,
-    streamID: String
+    streamID: String,
+    height: {
+      type: String,
+      default: '200px'
+    }
   },
   data() {
     return {
@@ -141,7 +146,7 @@ export default {
       await this.startPlay();
     },
     viewStream() {
-      this.$emit('showPlayer', { selectChannel: this.channelSelected });
+      this.$emit('showPlayer', { selectChannel: this.channelSelected, type: 'webrtc' });
     },
     async changeChannel(e) {
       console.log(e);
@@ -153,7 +158,7 @@ export default {
       this.$toast.info(`Change Channel: ${this.channelSelected.name}`);
     },
     genOptions(arr) {
-      var opts = [];
+      let opts = [];
       if (arr.length > 0) {
         for (const item of arr) {
           opts.push({
@@ -303,7 +308,6 @@ export default {
 }
 video {
   object-fit: cover;
-  height: 200px;
   border-radius: 5px;
 }
 .playerWrap {

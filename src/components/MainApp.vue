@@ -21,7 +21,7 @@
               <div class="buttonMedia"
                 @click="showModeList('#videoButton'+index)"
               >
-                <b-icon icon="camera-video-fill" variant="success"
+                <b-icon icon="display-fill" size="md" variant="success"
                   v-b-tooltip.hover :title="`Chuyển đổi chế độ phát media. Hiện tại đang chạy: ${stream.playType}`"
                 />
               </div>
@@ -107,6 +107,100 @@
       <hr>
       <b-button variant="primary" size="sm" v-on:click="openManageModal">Quản lý</b-button>
     </div>
+    <modal name="showAllFormatModal" 
+      draggable=".showAllFormatModal"
+      width="1200px"
+      height="675px"
+      >
+      <div class="contentPreview" style="border-radius: 5px;">
+        <b-icon icon="x-circle-fill" variant="danger"
+          style="position: absolute; z-index: 1001; top: 5px; right: 5px;"
+          @click="closeStream()"
+        ></b-icon>
+        <b-col style="height: 100%; width: 100%; padding: 0px 10px;">
+          <b-row style="height: 50%;">
+            <b-col style="height: 100%;">
+              <b-row style="width: 100%; display: flex; flex-direction: row;">
+                <b-col style="flex-grow: 1; white-space: nowrap;
+                    overflow: hidden;
+                    text-overflow: ellipsis;
+                    padding-left: 60px;
+                    ">
+                  <span style="font-weight: bold;">
+                    WEBRTC Stream: {{ selectStreamShowMulti.name }}
+                  </span>
+                </b-col>
+              </b-row>
+              <Player
+                :channels="selectStreamShowMulti.channels"
+                :streamID="selectStreamShowMulti.name"
+                @showPlayer="showPlayer"
+                :height="'300px'"
+              />
+            </b-col>
+            <b-col style="height: 100%;">
+              <b-row style="width: 100%; display: flex; flex-direction: row;">
+                <b-col style="flex-grow: 1; white-space: nowrap;
+                    overflow: hidden;
+                    text-overflow: ellipsis;
+                    padding-left: 60px;
+                    ">
+                  <span style="font-weight: bold;">
+                    HLSLL Stream: {{ selectStreamShowMulti.name }}
+                  </span>
+                </b-col>
+              </b-row>
+              <HLSLLPlayer
+                :channels="selectStreamShowMulti.channels"
+                :streamID="selectStreamShowMulti.name"
+                @showPlayer="showPlayer"
+                :height="'300px'"
+              />
+            </b-col>
+          </b-row>
+          <b-row style="height: 50%;">
+            <b-col style="height: 100%;">
+              <b-row style="width: 100%; display: flex; flex-direction: row;">
+                <b-col style="flex-grow: 1; white-space: nowrap;
+                    overflow: hidden;
+                    text-overflow: ellipsis;
+                    padding-left: 60px;
+                    ">
+                  <span style="font-weight: bold;">
+                    HLS Stream: {{ selectStreamShowMulti.name }}
+                  </span>
+                </b-col>
+              </b-row>
+              <HLSPlayer
+                :channels="selectStreamShowMulti.channels"
+                :streamID="selectStreamShowMulti.name"
+                @showPlayer="showPlayer"
+                :height="'300px'"
+              />
+            </b-col>
+            <b-col style="height: 100%;">
+              <b-row style="width: 100%; display: flex; flex-direction: row;">
+                <b-col style="flex-grow: 1; white-space: nowrap;
+                    overflow: hidden;
+                    text-overflow: ellipsis;
+                    padding-left: 60px;
+                    ">
+                  <span style="font-weight: bold;">
+                    MSE Stream: {{ selectStreamShowMulti.name }}
+                  </span>
+                </b-col>
+              </b-row>
+              <MSEPlayer
+                :channels="selectStreamShowMulti.channels"
+                :streamID="selectStreamShowMulti.name"
+                @showPlayer="showPlayer"
+                :height="'300px'"
+              />
+            </b-col>
+          </b-row>
+        </b-col>
+      </div>
+    </modal>
     <modal name="previewModal" 
       draggable=".contentPreview"
       width="1200px"
@@ -272,13 +366,23 @@
               </b-row>
             </b-col>
             <b-col cols="1">
-              <b-row>
-                <b-button variant="light" @click="onCopyWebrtcUrl(item)">
+              <b-row :id="'copyUrlButton'+index" style="display: block;">
+                <b-button variant="light"
+                  @click="showModeListCopyUrl('#copyUrlButton'+index)"
+                >
                   <b-icon icon="back" variant="success"
-                    v-b-tooltip.hover title="Sao chép WebrtcUrl"
+                    v-b-tooltip.hover title="Sao chép url stream."
                   >
                   </b-icon>
                 </b-button>
+                <div class="menuCopyMode">
+                  Loại URL:
+                  <b-form-select
+                    v-model="typeUrlCopy"
+                    :options="formatList" 
+                    @change="changeModeCopyUrl(index, '#copyUrlButton'+index, item)"
+                    size="sm" class="mt-3"></b-form-select>
+                </div>
               </b-row>
             </b-col>
           </b-row>
@@ -335,6 +439,8 @@ import HLSPlayer from './HLSPlayer';
 import MSEPlayer from './MSEPlayer';
 import APP_CONFIG from '../config.js'
 import { $ } from '../common.js';
+import Hls from 'hls.js';
+import { convertUrlWs, Utf8ArrayToStr } from '../common.js';
 
 export default {
   name: 'HelloWorld',
@@ -349,7 +455,7 @@ export default {
   },
   data() {
     return {
-      formatList: ['webrtc', 'hls', 'hlsll', 'mse'],
+      formatList: ['webrtc', 'hls', 'hlsll', 'mse','all'],
       streamList: [],
       selectPlayer: {},
       webrtc: null,
@@ -370,7 +476,17 @@ export default {
       searchTextManage: '',
       isSearching: false,
       totalResultSearch: 0,
-      listStreamManageDisplay: []
+      listStreamManageDisplay: [],
+      hls:null,
+      ws:null,
+      mseSourceBuffer:null,
+      mse:null,
+      mseQueue:[],
+      mseStreamingStarted:false,
+      selectStreamShowMulti: {},
+      showAllStream: false,
+      selectIndexStreamShowMulti: -1,
+      typeUrlCopy: ''
     }
   },
   mounted: function() {
@@ -463,6 +579,74 @@ export default {
       const videoHeaderEl = $(classEl);
       // console.log(videoHeaderEl);
       const menuItem = videoHeaderEl.getElementsByClassName('menuPlayMode');
+      if (menuItem[0].style.display === 'none') {
+        menuItem[0].style.display = 'block';
+      } else {
+        menuItem[0].style.display = 'none';
+      }
+      this.selectStreamShowMulti = this.streamListDisplay[index];
+      if (this.selectStreamShowMulti.playType === 'all') {
+        this.$modal.show('showAllFormatModal');
+        this.selectIndexStreamShowMulti = index;
+      }
+    },
+    changeModeCopyUrl(index, classEl, channel) {
+      const videoHeaderEl = $(classEl);
+      // console.log(videoHeaderEl);
+      const menuItem = videoHeaderEl.getElementsByClassName('menuCopyMode');
+      if (menuItem[0].style.display === 'none') {
+        menuItem[0].style.display = 'block';
+      } else {
+        menuItem[0].style.display = 'none';
+      }
+      switch (this.typeUrlCopy) {
+        case 'webrtc':
+          {
+            const webrtcTemp = APP_CONFIG.BASE_URL + channel.webrtcUrl;
+            navigator.clipboard.writeText(webrtcTemp);
+            this.$toast.info(`Đã sao chép WEBRTC URL thành công`);
+          }
+          break;
+        case 'hls':
+          {
+            const webrtcTemp = APP_CONFIG.BASE_URL + channel.hlsUrl;
+            navigator.clipboard.writeText(webrtcTemp);
+            this.$toast.info(`Đã sao chép HLS URL thành công`);
+          }
+          break;
+        case 'hlsll':
+          {
+            const webrtcTemp = APP_CONFIG.BASE_URL + channel.hlsllUrl;
+            navigator.clipboard.writeText(webrtcTemp);
+            this.$toast.info(`Đã sao chép HLSLL URL thành công`);
+          }
+          break;
+        case 'mse':
+          {
+            const webrtcTemp = convertUrlWs(APP_CONFIG.BASE_URL + channel.webrtcUrl);
+            navigator.clipboard.writeText(webrtcTemp);
+            this.$toast.info(`Đã sao chép MSE URL thành công`);
+          }
+          break;
+      
+        default:
+          {
+            const webrtcTemp = [APP_CONFIG.BASE_URL + channel.webrtcUrl,
+              APP_CONFIG.BASE_URL + channel.hlsUrl,
+              APP_CONFIG.BASE_URL + channel.hlsllUrl,
+              convertUrlWs(APP_CONFIG.BASE_URL + channel.webrtcUrl)
+            ].join('; ');
+            navigator.clipboard.writeText(webrtcTemp);
+            this.$toast.info(`Đã sao chép tất cả URL thành công`);
+          }
+          break;
+      }
+    },
+    showModeListCopyUrl(value) {
+      const videoHeaderEl = $(value);
+      console.log(videoHeaderEl);
+      const menuItem = videoHeaderEl.getElementsByClassName('menuCopyMode');
+      console.log(menuItem);
       if (menuItem[0].style.display === 'none') {
         menuItem[0].style.display = 'block';
       } else {
@@ -707,7 +891,7 @@ export default {
     },
     countChannels(arr) {
       let result = 0;
-      for (var i = 0; i < arr.length; i++) {
+      for (let i = 0; i < arr.length; i++) {
         result += arr[i].channels.length;
       }
       return result
@@ -721,35 +905,132 @@ export default {
         this.webrtc.close();
         this.webrtc = null;
       }
-      // this.$bvModal.hide('playerModal');
-      this.$modal.hide('previewModal');
-    },
-    async startPlay() {
-      this.webrtc = new RTCPeerConnection({
-      iceServers: [{
-          urls: APP_CONFIG.STUN_SERVER
-      }],
-      sdpSemantics: 'unified-plan'
-      });
-      this.webrtc.onnegotiationneeded = await this.handleNegotiationNeeded;
-      this.webrtc.ontrack = function(event) {
-        // console.log(event.streams.length + ' track is delivered');
-        let videoEl = document.querySelector('#webrtc-video-modal');
-        videoEl.srcObject = event.streams[0];
-        videoEl.play();
+      if(this.ws!=null){
+        //close WebSocket connection if opened
+        this.ws.close(1000);
+        this.ws=null;
       }
-      this.webrtc.addTransceiver('video', {
-      'direction': 'sendrecv'
-      });
-      // this.webrtcSendChannel = this.webrtc.createDataChannel('sendchannel');
-      // this.webrtcSendChannel.onopen = () => {
-      //   console.log('sendChannel has opened');
-      //   // this.webrtcSendChannel.send('ping');
-      //   // this.webrtcSendChannelInterval = setInterval(() => {
-      //   //     this.webrtcSendChannel.send('ping');
-      //   // }, 1000)
-      // }
-      // this.webrtcSendChannel.onmessage = e => console.log(e.data);
+      if(this.hls!=null){
+        this.hls.destroy();
+        this.hls=null;
+      }
+      this.$modal.hide('showAllFormatModal');
+      this.$modal.hide('previewModal');
+      if (this.selectIndexStreamShowMulti !== -1) {
+        this.streamListDisplay[this.selectIndexStreamShowMulti].playType = 'webrtc';
+      }
+    },
+    async startPlay(type) {
+      switch (type) {
+        case 'webrtc':
+          this.webrtc = new RTCPeerConnection({
+          iceServers: [{
+              urls: APP_CONFIG.STUN_SERVER
+          }],
+          sdpSemantics: 'unified-plan'
+          });
+          this.webrtc.onnegotiationneeded = await this.handleNegotiationNeeded;
+          this.webrtc.ontrack = function(event) {
+            // console.log(event.streams.length + ' track is delivered');
+            let videoEl = document.querySelector('#webrtc-video-modal');
+            videoEl.srcObject = event.streams[0];
+            videoEl.play();
+          }
+          this.webrtc.addTransceiver('video', {
+          'direction': 'sendrecv'
+          });
+          break;
+        case 'hls':
+          {
+            this.loadingPreview = false;
+            if(this.hls==null && Hls.isSupported()){
+              this.hls = new Hls();
+            }
+            setTimeout(() => {
+              let videoElhls = document.querySelector('#webrtc-video-modal')
+              console.log(this.currentUrl, videoElhls);
+              if (videoElhls.canPlayType('application/vnd.apple.mpegurl')) {
+                videoElhls.src = APP_CONFIG.BASE_URL + this.currentUrl;
+                videoElhls.load();
+              } else {
+                  if (this.hls != null) {
+                      this.hls.loadSource(APP_CONFIG.BASE_URL + this.currentUrl);
+                      this.hls.attachMedia(videoElhls);
+                  } else {
+                      this.$toast.error('Trình duyệt không hỗ trợ hls!');
+                  }
+              }
+            }, 500);
+          }
+          break;
+        case 'hlsll':
+          {
+            this.loadingPreview = false;
+            if(this.hls==null && Hls.isSupported()){
+              this.hls = new Hls();
+            }
+            setTimeout(() => {
+              let videoElhlsll = document.querySelector('#webrtc-video-modal')
+              if (videoElhlsll.canPlayType('application/vnd.apple.mpegurl')) {
+                  videoElhlsll.src = APP_CONFIG.BASE_URL + this.currentUrl;
+                  videoElhlsll.load();
+              } else {
+                  if (this.hls != null) {
+                      this.hls.loadSource(APP_CONFIG.BASE_URL + this.currentUrl);
+                      this.hls.attachMedia(videoElhlsll);
+                  } else {
+                      this.$toast.error('Trình duyệt không hỗ trợ hls!');
+                  }
+              }
+            }, 500);
+          }
+          break;
+        case 'mse':
+          {
+            this.loadingPreview = false;
+            this.mse = new MediaSource();
+            setTimeout(() => {
+              let videoElmse = document.querySelector('#webrtc-video-modal')
+              const mseUrl = convertUrlWs(APP_CONFIG.BASE_URL + this.currentUrl);
+              const _this  = this;
+              videoElmse.src = window.URL.createObjectURL(this.mse);
+              this.mse.addEventListener('sourceopen', function(){
+                _this.ws=new WebSocket(mseUrl);
+                _this.ws.binaryType = "arraybuffer";
+                _this.ws.onopen = function(e) {
+                  console.log('Connect to ws', e);
+                }
+                _this.ws.onclose = function(e) {
+                  console.log('Disconnect to ws', e);
+                }
+
+                _this.ws.onmessage = function(event) {
+                  let data = new Uint8Array(event.data);
+                    if (data[0] == 9) {
+                      let decoded_arr = data.slice(1);
+                      let mimeCodec = null;
+                      if (window.TextDecoder) {
+                        mimeCodec = new TextDecoder("utf-8").decode(decoded_arr);
+                      } else {
+                        mimeCodec = Utf8ArrayToStr(decoded_arr);
+                      }
+                      // console.log(mimeCodec);
+                      _this.mseSourceBuffer = _this.mse.addSourceBuffer('video/mp4; codecs="' + mimeCodec + '"');
+                      _this.mseSourceBuffer.mode = "segments"
+                      _this.mseSourceBuffer.addEventListener("updateend", _this.pushPacket);
+
+                    } else {
+                      _this.readPacket(event.data);
+                    }
+                  };
+              }, false);
+            }, 500)
+
+          }
+          break;
+        default:
+          break;
+      }
     },
     async handleNegotiationNeeded() {
       let url = APP_CONFIG.BASE_URL + this.currentUrl;
@@ -777,11 +1058,12 @@ export default {
             console.warn(e);
         }
     })},
-    async showPlayer({ selectChannel }) {
+    async showPlayer({ selectChannel, type }) {
+      console.log(selectChannel, type);
       this.loadingPreview = true;
       this.currentUrl = selectChannel.url;
-      await this.startPlay();
       this.$modal.show('previewModal');
+      await this.startPlay(type);
     },
     async getListCamWebRTC() {
       this.isRebooting = true;
@@ -846,7 +1128,31 @@ export default {
         this.$toast.error('Có lỗi xảy ra khi lấy danh sách luồng stream!');
         throw new Error(error);
       }
-    }
+    },
+    //funtion for MSE
+    pushPacket(){
+      if (!this.mseSourceBuffer.updating) {
+        if (this.mseQueue.length > 0) {
+          let packet = this.mseQueue.shift();
+          // var view = new Uint8Array(packet);
+          this.mseSourceBuffer.appendBuffer(packet);
+        } else {
+          this.mseStreamingStarted = false;
+        }
+      }
+    },
+    readPacket(packet){
+      if (!this.mseStreamingStarted) {
+        this.mseSourceBuffer.appendBuffer(packet);
+        this.mseStreamingStarted = true;
+        return;
+      }
+      this.mseQueue.push(packet);
+
+      if (!this.mseSourceBuffer.updating) {
+        this.pushPacket();
+      }
+    },
   }
 }
 </script>
@@ -931,6 +1237,7 @@ b-modal > .modal-body {
   justify-content: center;
   align-content: center;
   align-items: center;
+  height: 100%;
 }
 
 .manageContent {
@@ -959,6 +1266,19 @@ b-modal > .modal-body {
   display: none;
   z-index: 100;
 }
+.menuCopyMode {
+  position: absolute;
+  background-color: white;
+  margin-right: 10px;
+  box-shadow: rgba(100, 100, 111, 0.2) 0px 7px 29px 0px;
+  padding: 5px 10px;
+  border: 1px solid gray;
+  border-radius: 8px;
+  display: none;
+  z-index: 500;
+  width: 180px;
+  right:10px;
+}
 .buttonMedia {
   width: 30px;
   height: 30px;
@@ -971,4 +1291,5 @@ b-modal > .modal-body {
   border: 1px solid gray;
   box-shadow: rgba(0, 0, 0, 0.35) 0px 5px 15px;
 }
+
 </style>

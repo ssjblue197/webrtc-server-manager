@@ -44,7 +44,8 @@
           <video 
             v-show="!showIconReload"
             poster="../assets/playing.svg"
-            :id="`webrtc-video${this.streamID + 'video' + this.channelSelected.name}`" autoplay muted playsinline width="100%" @dblclick="viewStream()"></video>
+            :style="'height:' + this.height"
+            :id="`mse-video${this.streamID + 'video' + this.channelSelected.name}`" autoplay muted playsinline width="100%" @dblclick="viewStream()"></video>
           <div
             v-show="showIconReload"
             style="display: flex; flex-direction: row; text-align: center; justify-items: center; justify-content: center; height: 210px; padding-top: 80px;">
@@ -62,14 +63,18 @@
 
 <script>
 // let webrtc, webrtcSendChannel, webrtcSendChannelInterval;
-import APP_CONFIG from '../config.js'
-
+import APP_CONFIG from '../config.js';
+import { convertUrlWs, Utf8ArrayToStr } from '../common.js';
 
 export default {
   name: 'Player',
   props: {
     channels: Array,
-    streamID: String
+    streamID: String,
+    height: {
+      type: String,
+      default: '200px'
+    }
   },
   data() {
     return {
@@ -138,7 +143,7 @@ export default {
       this.hoverSetting = hovered;
     },
     async reloadChannel() {
-      console.log('Reload Channel:', this.streamID + '/' + this.channelSelected.name);
+      // console.log('Reload Channel:', this.streamID + '/' + this.channelSelected.name);
       this.$toast.info(`Reload Channel: ${this.streamID + '/' + this.channelSelected.name}`);
       this.showIconReload = false;
       this.countRetry = 1;
@@ -146,7 +151,7 @@ export default {
       await this.startPlay();
     },
     viewStream() {
-      this.$emit('showPlayer', { selectChannel: this.channelSelected });
+      this.$emit('showPlayer', { selectChannel: this.channelSelected, type: 'mse' });
     },
     async changeChannel(e) {
       console.log(e);
@@ -158,7 +163,7 @@ export default {
       this.$toast.info(`Change Channel: ${this.channelSelected.name}`);
     },
     genOptions(arr) {
-      var opts = [];
+      let opts = [];
       if (arr.length > 0) {
         for (const item of arr) {
           opts.push({
@@ -173,14 +178,6 @@ export default {
       return opts
     },
     async closeStream() {
-      if (this.webrtcSendChannel !== null) {
-        this.webrtcSendChannel.close();
-        this.webrtcSendChannel = null;
-      }
-      if (this.webrtc !== null) {
-        this.webrtc.close();
-        this.webrtc = null;
-      }
       if(this.ws!=null){
         //close WebSocket connection if opened
         this.ws.close(1000);
@@ -188,19 +185,15 @@ export default {
       }
       this.isClosed = true;
     },
-    convertUrlWs(value) {
-      if (value.includes('https')) return value.replace('https', 'wss');
-      if (value.includes('http')) return value.replace('http', 'ws');
-    },
     async startPlay() {
       this.mse = new MediaSource();
       this.isClosed = false;
       this.isRebooting = false;
       // this.$toast.success(`Start Stream: ${this.streamID} / ${this.channelSelected.name}`);
-      let videoID = '#webrtc-video' + this.streamID + 'video' + this.channelSelected.name;
+      let videoID = '#mse-video' + this.streamID + 'video' + this.channelSelected.name;
       // console.log(videoID);
       let videoEl = document.querySelector(videoID);
-      this.currentUrl = this.convertUrlWs(APP_CONFIG.BASE_URL + this.channelSelected.url);
+      this.currentUrl = convertUrlWs(APP_CONFIG.BASE_URL + this.channelSelected.url);
       console.log('this.currentUrl', this.currentUrl);
       const _this  = this;
       videoEl.src = window.URL.createObjectURL(this.mse);
@@ -212,16 +205,16 @@ export default {
         }
 
         _this.ws.onmessage = function(event) {
-          var data = new Uint8Array(event.data);
+          let data = new Uint8Array(event.data);
             if (data[0] == 9) {
               let decoded_arr = data.slice(1);
               let mimeCodec = null;
               if (window.TextDecoder) {
                 mimeCodec = new TextDecoder("utf-8").decode(decoded_arr);
               } else {
-                mimeCodec = _this.Utf8ArrayToStr(decoded_arr);
+                mimeCodec = Utf8ArrayToStr(decoded_arr);
               }
-              console.log(mimeCodec);
+              // console.log(mimeCodec);
               _this.mseSourceBuffer = _this.mse.addSourceBuffer('video/mp4; codecs="' + mimeCodec + '"');
               _this.mseSourceBuffer.mode = "segments"
               _this.mseSourceBuffer.addEventListener("updateend", _this.pushPacket);
@@ -231,33 +224,6 @@ export default {
             }
           };
       }, false);
-    },
-    Utf8ArrayToStr(array) {
-      var out, i, len, c;
-      var char2, char3;
-      out = "";
-      len = array.length;
-      i = 0;
-      while (i < len) {
-        c = array[i++];
-        switch (c >> 4) {
-          case 7:
-            out += String.fromCharCode(c);
-            break;
-          case 13:
-            char2 = array[i++];
-            out += String.fromCharCode(((c & 0x1F) << 6) | (char2 & 0x3F));
-            break;
-          case 14:
-            char2 = array[i++];
-            char3 = array[i++];
-            out += String.fromCharCode(((c & 0x0F) << 12) |
-              ((char2 & 0x3F) << 6) |
-              ((char3 & 0x3F) << 0));
-            break;
-        }
-      }
-      return out;
     },
     pushPacket(){
       if (!this.mseSourceBuffer.updating) {
