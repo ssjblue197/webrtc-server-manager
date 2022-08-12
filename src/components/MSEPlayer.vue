@@ -98,7 +98,7 @@ export default {
       if (this.channels.length > 0) {
         this.channelSelected = {
           name: this.channels[0].name,
-          url: this.channels[0].webrtcUrl
+          url: this.channels[0].mseUrl
         }
       }
     }
@@ -107,7 +107,7 @@ export default {
     if (this.channels.length > 0) {
       this.channelSelected = {
         name: this.channels[0].name,
-        url: this.channels[0].webrtcUrl
+        url: this.channels[0].mseUrl
       }
     }
   },
@@ -165,7 +165,7 @@ export default {
             text: item.name,
             value: {
               name: item.name,
-              url: item.webrtcUrl
+              url: item.mseUrl
             },
           })
         }
@@ -202,15 +202,16 @@ export default {
       let videoEl = document.querySelector(videoID);
       this.currentUrl = this.convertUrlWs(APP_CONFIG.BASE_URL + this.channelSelected.url);
       console.log('this.currentUrl', this.currentUrl);
+      const _this  = this;
       videoEl.src = window.URL.createObjectURL(this.mse);
       this.mse.addEventListener('sourceopen', function(){
-        this.ws=new WebSocket(this.currentUrl);
-        this.ws.binaryType = "arraybuffer";
-        this.ws.onopen = function(e) {
+        _this.ws=new WebSocket(_this.currentUrl);
+        _this.ws.binaryType = "arraybuffer";
+        _this.ws.onopen = function(e) {
           console.log('Connect to ws', e);
         }
 
-        this.ws.onmessage = function(event) {
+        _this.ws.onmessage = function(event) {
           var data = new Uint8Array(event.data);
             if (data[0] == 9) {
               let decoded_arr = data.slice(1);
@@ -218,15 +219,15 @@ export default {
               if (window.TextDecoder) {
                 mimeCodec = new TextDecoder("utf-8").decode(decoded_arr);
               } else {
-                mimeCodec = this.Utf8ArrayToStr(decoded_arr);
+                mimeCodec = _this.Utf8ArrayToStr(decoded_arr);
               }
               console.log(mimeCodec);
-              this.mseSourceBuffer = this.mse.addSourceBuffer('video/mp4; codecs="' + mimeCodec + '"');
-              this.mseSourceBuffer.mode = "segments"
-              this.mseSourceBuffer.addEventListener("updateend", this.pushPacket);
+              _this.mseSourceBuffer = _this.mse.addSourceBuffer('video/mp4; codecs="' + mimeCodec + '"');
+              _this.mseSourceBuffer.mode = "segments"
+              _this.mseSourceBuffer.addEventListener("updateend", _this.pushPacket);
 
             } else {
-              this.readPacket(event.data);
+              _this.readPacket(event.data);
             }
           };
       }, false);

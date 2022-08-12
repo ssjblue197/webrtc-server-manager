@@ -1,8 +1,8 @@
 var APP_CONFIG = {
     /* ****** WEBSOCKET ******** */
-    // BASE_URL: 'https://democamera.hcdt.vn:3443',
+    BASE_URL: 'https://democamera.hcdt.vn:3443',
     // BASE_URL: '/api',
-    BASE_URL: 'http://localhost:8008',
+    // BASE_URL: 'http://localhost:8008',
     BASIC_AUTH: {
         USERNAME: 'admin',
         PASSWORD: 'admin123'

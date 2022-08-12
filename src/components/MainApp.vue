@@ -957,6 +957,7 @@ b-modal > .modal-body {
   border: 1px solid gray;
   border-radius: 8px;
   display: none;
+  z-index: 100;
 }
 .buttonMedia {
   width: 30px;
