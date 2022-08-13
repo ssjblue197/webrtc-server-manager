@@ -36,7 +36,7 @@
             </b-col>
           </b-row>
             <Player
-              v-if="stream.playType === 'webrtc'"
+              v-if="stream.playType === 'webrtc' || stream.playType === 'all'"
               :channels="stream.channels"
               :streamID="stream.name"
               @showPlayer="showPlayer"
@@ -111,6 +111,8 @@
       draggable=".showAllFormatModal"
       width="1200px"
       height="675px"
+      no-close-on-backdrop
+      no-close-on-esc
       >
       <div class="contentPreview" style="border-radius: 5px;">
         <b-icon icon="x-circle-fill" variant="danger"
@@ -119,7 +121,7 @@
         ></b-icon>
         <b-col style="height: 100%; width: 100%; padding: 0px 10px;">
           <b-row style="height: 50%;">
-            <b-col style="height: 100%;">
+            <b-col style="height: 100%; border: 1px solid gray;">
               <b-row style="width: 100%; display: flex; flex-direction: row;">
                 <b-col style="flex-grow: 1; white-space: nowrap;
                     overflow: hidden;
@@ -138,7 +140,7 @@
                 :height="'300px'"
               />
             </b-col>
-            <b-col style="height: 100%;">
+            <b-col style="height: 100%; border: 1px solid gray;">
               <b-row style="width: 100%; display: flex; flex-direction: row;">
                 <b-col style="flex-grow: 1; white-space: nowrap;
                     overflow: hidden;
@@ -159,7 +161,7 @@
             </b-col>
           </b-row>
           <b-row style="height: 50%;">
-            <b-col style="height: 100%;">
+            <b-col style="height: 100%; border: 1px solid gray;">
               <b-row style="width: 100%; display: flex; flex-direction: row;">
                 <b-col style="flex-grow: 1; white-space: nowrap;
                     overflow: hidden;
@@ -178,7 +180,7 @@
                 :height="'300px'"
               />
             </b-col>
-            <b-col style="height: 100%;">
+            <b-col style="height: 100%; border: 1px solid gray;">
               <b-row style="width: 100%; display: flex; flex-direction: row;">
                 <b-col style="flex-grow: 1; white-space: nowrap;
                     overflow: hidden;
@@ -1106,7 +1108,7 @@ export default {
           }
           //Total stream
           this.streamList = tmp.reverse();
-          console.log('[TOTAL STREAMS]:', this.streamList);
+          // console.log('[TOTAL STREAMS]:', this.streamList);
           //Paginate
           let resultDisplay = [];
           if (this.streamList.length > 0) {

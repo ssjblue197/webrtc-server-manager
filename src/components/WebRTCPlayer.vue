@@ -48,7 +48,8 @@
             :id="`webrtc-video${this.streamID + 'video' + this.channelSelected.name}`" autoplay muted playsinline width="100%" @dblclick="viewStream()"></video>
           <div
             v-show="showIconReload"
-            style="display: flex; flex-direction: row; text-align: center; justify-items: center; justify-content: center; height: 210px; padding-top: 80px;">
+            style="display: flex; flex-direction: row; text-align: center; justify-items: center; justify-content: center; height: 210px; padding-top: 80px;"
+            >
             <b-icon icon="arrow-clockwise" variant="secondary"
               :animation="hoverReload ? 'spin' : ''"
               v-b-hover="hoverReloadAct"
@@ -88,7 +89,7 @@ export default {
         isClosed: false,
         hoverReload: false,
         hoverSetting: false,
-        countRetry: 3,
+        countRetry: 2,
         showIconReload: false,
         replayTimeout: null
     }
@@ -272,7 +273,7 @@ export default {
                 this.replayTimeout = setTimeout(async () => {
                   await this.closeStream();
                   await this.startPlay();
-                }, 3000);
+                }, 5000);
                 // console.log('[CON LAI SO LAN THU]:',this.countRetry);
                 this.countRetry--;
             } else {
